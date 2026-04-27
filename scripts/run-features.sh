@@ -9,9 +9,9 @@
 # Layout expected:
 #   $SPECS_DIR/<slug>/<SPEC_FILE>     (defaults: specs/<slug>/spec.md)
 # The slug is the directory name. The spec format is up to you (markdown is
-# conventional but not required). No workflow framework is assumed; if your
-# project uses one (SDD, BDD, etc.), document it in CLAUDE.md and the runner
-# will pick the rules up when Claude reads the spec.
+# conventional but not required). If your project has its own conventions,
+# document them in CLAUDE.md — the runner instructs Claude to read it
+# before touching the spec.
 #
 # "Self-evolving" means three things:
 #   1. Each iteration reads the feature's prior attempt log AND a global
@@ -222,7 +222,7 @@ call you again):
 
 1. Read $spec_path to understand what this feature requires. If a CLAUDE.md
    exists at the repo root or in a relevant subdir, follow its conventions
-   and any workflow it mandates (e.g. SDD, BDD, custom slash commands).
+   and any workflow it mandates.
 2. Make progress on the spec — implement the next unfinished piece. Don't try
    to finish the whole feature in one invocation; the outer loop will call
    you again. Prefer small, verifiable steps over large speculative ones.

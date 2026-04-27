@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is the **source-of-truth for the harness**, not a target project. It contains a single bash runner that gets *copied into* other repos. Editing this repo means editing the runner itself; the runner has no specs of its own to drive.
 
-The runner (`scripts/run-features.sh`) is project-agnostic: it iterates `$SPECS_DIR/<slug>/<SPEC_FILE>` (defaults `specs/<slug>/spec.md`) and invokes `claude -p` per iteration until each feature has a `.done` marker. It assumes nothing about the target project's workflow framework, language, or test runner — Claude reads the spec (and any CLAUDE.md the target project ships) and picks the right tools.
+The runner (`scripts/run-features.sh`) is project-agnostic: it iterates `$SPECS_DIR/<slug>/<SPEC_FILE>` (defaults `specs/<slug>/spec.md`) and invokes `claude -p` per iteration until each feature has a `.done` marker. It assumes nothing about the target project's language or test runner — Claude reads the spec (and any CLAUDE.md the target project ships) and picks the right tools.
 
 See README.md for full operational docs (prerequisites, install steps, configuration knobs, exit codes).
 
@@ -54,7 +54,7 @@ When changing the runner, the load-bearing invariants are:
    - **Floor** (`scripts/run-features.sh` ~lines 274-294): the size-delta circuit breaker is the only enforcement. Without it, the loop will happily spin forever on a silent or hallucinated feedback channel. Don't disable it; tune `STUCK_LIMIT` instead.
    - Both `<slug>.log` and `learnings.md` must be append-only across iterations. Truncation breaks memory.
 4. **Ordering is read every iteration** from `scripts/feature-order.txt`. Editing the order file mid-run is supported and intentional.
-5. **The runner is workflow-agnostic.** Don't bake SDD/BDD/any-other-framework wording into the prompt. If a target project needs a specific workflow, it expresses that in its own CLAUDE.md, which step 1 of the prompt tells Claude to read.
+5. **Keep the prompt project-neutral.** Don't bake project-specific conventions or framework wording into the prompt. If a target project needs a specific workflow, it expresses that in its own CLAUDE.md, which step 1 of the prompt tells Claude to read.
 
 ## Files
 
@@ -69,4 +69,4 @@ When changing the runner, the load-bearing invariants are:
 
 - **Linux/GNU coreutils assumed.** `timeout`, `stat -c`, `df -Pm` are GNU-flavoured. Don't switch to BSD-only flags without explicit cross-platform intent.
 - **`set -uo pipefail` is intentional, `set -e` is intentionally absent.** The runner must survive non-zero `claude` exits and continue iterating; adding `-e` will break the loop.
-- **Per-language conventions, domain skills, and workflow frameworks deliberately do not live here** (see README's "What is intentionally NOT in this folder"). Resist the temptation to add them — they belong in the target project.
+- **Per-language conventions and domain skills deliberately do not live here** (see README's "What this is NOT" section). Resist the temptation to add them — they belong in the target project.

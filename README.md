@@ -2,7 +2,7 @@
 
 A drop-in headless feature runner for any spec-driven project. Loops `claude -p` over `specs/*` until each feature has a verified `.done` marker. Self-evolves: every iteration sees the prior attempt log and a global learnings file.
 
-Project-agnostic. No assumptions about workflow framework, language, or test runner.
+Project-agnostic. The runner makes no assumptions about your project's language or test runner.
 
 > **TL;DR**
 > - One bash script (`scripts/run-features.sh`) + one ordering file + one base permissions file.
@@ -216,7 +216,6 @@ Quota or auth issue. Check the tail of the most recent feature log for the actua
 
 ## What this is NOT
 
-- **Not a workflow framework.** No SDD, BDD, or any methodology baked in. If you want one, write its rules into your project's CLAUDE.md and the runner picks them up via the spec-reading step.
 - **Not a planner.** It does not decompose specs into tasks. Claude does that inside each iteration.
 - **Not a verifier.** Verification is delegated to Claude. The runner only trusts the `.done` marker.
 - **Not language-specific.** The base permission allowlist is opinionated about common tools but you can swap it freely.
