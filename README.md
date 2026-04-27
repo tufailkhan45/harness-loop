@@ -76,23 +76,23 @@ sequenceDiagram
     participant T as Target project<br/>(code, tests, browser)
 
     L->>FS: read scripts/feature-order.txt
-    L->>FS: scan SPECS_DIR; skip .done markers
+    L->>FS: scan SPECS_DIR, skip .done markers
     L->>L: pick next slug
-    L->>FS: tail -n 200 <slug>.log → PRIOR_LOG
+    L->>FS: tail -n 200 slug.log → PRIOR_LOG
     L->>FS: tail -n 200 learnings.md → LEARNINGS
     L->>L: assemble prompt<br/>(spec path + PRIOR_LOG + LEARNINGS + steps 1-6)
     L->>C: timeout CLAUDE_TIMEOUT claude -p ...
     C->>FS: read spec, CLAUDE.md
     C->>T: implement next step (Edit / Write / Bash / MCP)
     C->>T: verify (pytest / npm test / curl / browser)
-    C->>FS: append progress note to <slug>.log
+    C->>FS: append progress note to slug.log
     C-->>FS: maybe append one-liner to learnings.md
-    C-->>FS: if complete: write <slug>.done
+    C-->>FS: if complete, write slug.done
     C-->>L: exit code (0 / 124 / other)
-    L->>FS: stat <slug>.log → size delta check
+    L->>FS: stat slug.log → size delta check
     L->>L: stuck_count++ or reset
-    L->>FS: grep ^BLOCKED: <slug>.log
-    L->>L: halt (HALT + exit) OR sleep & loop
+    L->>FS: grep ^BLOCKED, slug.log
+    L->>L: halt (HALT + exit) OR sleep and loop
 ```
 
 ### Per-feature lifecycle (state)
@@ -102,7 +102,7 @@ stateDiagram-v2
     [*] --> Queued: spec exists,<br/>no .done marker
     Queued --> Running: loop picks slug
     Running --> Queued: claude exits, no .done<br/>(progress made or not — try again)
-    Running --> Done: claude writes <slug>.done
+    Running --> Done: claude writes slug.done
     Running --> Blocked: claude appends BLOCKED: line
     Running --> Stuck: STUCK_LIMIT iterations<br/>with log growth ≤ 32 B each
     Done --> [*]
@@ -125,7 +125,7 @@ flowchart TD
     E --> G
     F --> G{BLOCKED: line<br/>in feature log?}
     G -->|yes| Z4[touch HALT<br/>exit 4]
-    G -->|no| H{stuck_count<br/>>= STUCK_LIMIT?}
+    G -->|no| H{stuck_count<br/>&gt;= STUCK_LIMIT?}
     H -->|yes| Z5[touch HALT<br/>exit 5]
     H -->|no| I{.done marker<br/>now exists?}
     I -->|yes| J[feature complete<br/>continue to next]
