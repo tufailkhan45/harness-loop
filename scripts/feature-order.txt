@@ -1,0 +1,12 @@
+# Order in which the runner processes features.
+# One slug per line. Lines starting with # and blank lines are ignored.
+# Any features in specs/features/ not listed here are appended alphabetically
+# at the end. Reorder freely — the runner re-reads this file every iteration.
+#
+# Example:
+#   foundation-feature
+#   schema-feature
+#   pipeline-feature
+#   ui-feature
+#
+# Leave this file with only comments to fall back to alphabetical ordering.
