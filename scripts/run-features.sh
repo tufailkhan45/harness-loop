@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
-# Headless, self-evolving feature runner for STD-001 (Spec-Driven Development) projects.
+# Headless, self-evolving feature runner. Project-agnostic.
 #
-# Loops through specs/features/* and invokes `claude -p` until every feature
-# has a verified .done marker. Verification is delegated to Claude — it picks
-# the right tool for the job (pytest, npm test, curl, claude-in-chrome MCP for
-# UI smoke tests, etc.) based on what the feature actually needs.
+# Loops through $SPECS_DIR/* (default: specs/) and invokes `claude -p` until
+# every feature has a verified .done marker. Verification is delegated to
+# Claude — it picks the right tool for the job (pytest, npm test, curl,
+# claude-in-chrome MCP for UI smoke tests, etc.) based on what the spec needs.
+#
+# Layout expected:
+#   $SPECS_DIR/<slug>/<SPEC_FILE>     (defaults: specs/<slug>/spec.md)
+# The slug is the directory name. The spec format is up to you (markdown is
+# conventional but not required). No workflow framework is assumed; if your
+# project uses one (SDD, BDD, etc.), document it in CLAUDE.md and the runner
+# will pick the rules up when Claude reads the spec.
 #
 # "Self-evolving" means three things:
 #   1. Each iteration reads the feature's prior attempt log AND a global
@@ -16,6 +23,7 @@
 # Usage:
 #   ./scripts/run-features.sh
 #   MAX_ITERATIONS=200 ONLY=feature-a,feature-b ./scripts/run-features.sh
+#   SPECS_DIR=docs/specs SPEC_FILE=README.md ./scripts/run-features.sh
 #   DRY_RUN=1 ./scripts/run-features.sh        # print plan + sample prompt, no claude calls
 #
 # Ordering is read from $ORDER_FILE (default: scripts/feature-order.txt).
@@ -27,7 +35,9 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FEATURES_DIR="$ROOT/specs/features"
+SPECS_DIR="${SPECS_DIR:-specs}"
+SPEC_FILE="${SPEC_FILE:-spec.md}"
+FEATURES_DIR="$ROOT/$SPECS_DIR"
 LOG_DIR="$ROOT/logs/feature-runner"
 RUN_LOG="$LOG_DIR/run.log"
 LEARNINGS_FILE="$LOG_DIR/learnings.md"
@@ -40,6 +50,7 @@ SLEEP_BETWEEN="${SLEEP_BETWEEN:-2}"
 CLAUDE_TIMEOUT="${CLAUDE_TIMEOUT:-30m}"
 STUCK_LIMIT="${STUCK_LIMIT:-3}"
 DRY_RUN="${DRY_RUN:-0}"
+MODEL="${MODEL:-claude-sonnet-4-6}"
 
 mkdir -p "$LOG_DIR"
 touch "$RUN_LOG" "$LEARNINGS_FILE"
@@ -61,7 +72,7 @@ preflight() {
     fail=1
   fi
   if [[ ! -d "$FEATURES_DIR" ]]; then
-    log "PREFLIGHT FAIL: features dir missing: $FEATURES_DIR"
+    log "PREFLIGHT FAIL: specs dir missing: $FEATURES_DIR (override with SPECS_DIR=...)"
     fail=1
   fi
   if ! touch "$LOG_DIR/.write-test" 2>/dev/null; then
@@ -164,7 +175,7 @@ while (( iteration < MAX_ITERATIONS )); do
     exit 0
   fi
 
-  spec_path="$FEATURES_DIR/$slug/spec.md"
+  spec_path="$FEATURES_DIR/$slug/$SPEC_FILE"
   feature_log="$LOG_DIR/$slug.log"
   done_marker="$LOG_DIR/$slug.done"
   touch "$feature_log"
@@ -198,7 +209,10 @@ Treat it as lessons-learned. Do not repeat failed approaches without new info:
 $prior_context
 PRIOR_LOG
 
-Global learnings accumulated across all features so far:
+Global learnings accumulated across all features so far. These are lessons the
+loop has gathered from earlier iterations (env quirks, dependency gotchas,
+tools that worked or didn't). Honour them — this is how the loop self-evolves
+across features:
 <<<LEARNINGS
 $global_learnings
 LEARNINGS
@@ -206,25 +220,26 @@ LEARNINGS
 YOUR TASK FOR THIS INVOCATION (one meaningful step only — the outer loop will
 call you again):
 
-1. Read $spec_path. If no SDD change cycle exists for this feature, start one
-   with /sdd/start $slug.
-2. Execute the next unfinished task from the active cycle. Follow STD-001 and
-   the repo's CLAUDE.md. If the request conflicts with the project's
-   constitution (specs/constitution/), STOP and record the conflict in the log
-   instead of implementing.
+1. Read $spec_path to understand what this feature requires. If a CLAUDE.md
+   exists at the repo root or in a relevant subdir, follow its conventions
+   and any workflow it mandates (e.g. SDD, BDD, custom slash commands).
+2. Make progress on the spec — implement the next unfinished piece. Don't try
+   to finish the whole feature in one invocation; the outer loop will call
+   you again. Prefer small, verifiable steps over large speculative ones.
 3. Verify your change with whatever tool fits — write or run unit tests, hit
    an endpoint with curl, drive the UI through claude-in-chrome, etc.
 4. Append a progress note to $feature_log (≤ 40 lines): what you tried,
-   observed result, errors with key snippets, what to try next.
+   observed result, errors with key snippets, what to try next. Future
+   iterations on this feature read this log as PRIOR_LOG.
 5. If — and only if — anything you discovered would also help OTHER features
    (env quirk, dependency gotcha, tool that worked, tool that didn't), append
-   a one-line lesson to $LEARNINGS_FILE prefixed with the date.
-6. ONLY if this feature is fully complete — all cycle tasks done, verification
-   green, spec satisfied — write a one-line summary to $done_marker. Do not
-   write the marker otherwise; the outer loop trusts this signal.
+   a one-line lesson to $LEARNINGS_FILE prefixed with the date. Keep it
+   signal, not noise — every feature reads this on every iteration.
+6. ONLY if this feature is fully complete — spec satisfied AND verification
+   green — write a one-line summary to $done_marker. Do not write the marker
+   otherwise; the outer loop trusts this signal.
 
 Rules:
-- Never bypass SDD or VKF workflows defined in CLAUDE.md.
 - Do not attempt multiple features in one invocation.
 - If you are blocked by something the loop should know (broken env, missing
   secret, external service down), append a line starting "BLOCKED:" to
@@ -238,8 +253,8 @@ EOF
     exit 0
   fi
 
-  log "Invoking claude (timeout=$CLAUDE_TIMEOUT)"
-  timeout "$CLAUDE_TIMEOUT" claude -p "$prompt" --permission-mode bypassPermissions 2>&1 \
+  log "Invoking claude (model=$MODEL, timeout=$CLAUDE_TIMEOUT)"
+  timeout "$CLAUDE_TIMEOUT" claude -p "$prompt" --model "$MODEL" --permission-mode bypassPermissions 2>&1 \
     | tee -a "$feature_log"
   rc=${PIPESTATUS[0]}
   case "$rc" in
@@ -248,6 +263,13 @@ EOF
     *)   log "claude exited $rc" ;;
   esac
   printf '[%s] claude exit=%s\n' "$(date -Iseconds)" "$rc" >>"$feature_log"
+
+  if [[ $rc -ne 0 ]] && tail -n 5 "$feature_log" 2>/dev/null | grep -qiE \
+     'usage limit|rate limit|quota|authentication failed|invalid api key|unauthorized'; then
+    log "Hard external limit detected (quota/auth/rate) in '$slug' — halting run. See $feature_log."
+    touch "$HALT_FILE"
+    exit 6
+  fi
 
   size_after="$(filesize "$feature_log")"
   if (( size_after <= size_before + 32 )); then
